@@ -1,0 +1,518 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CDMX Traffic Newsletter - Sistema automatizado de newsletter de tráfico
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        SUBSCRIBERS_TABLE: !Ref SubscribersTable
+        NEWSLETTER_BUCKET: !Ref NewsletterBucket
+        ZAVU_API_KEY_SECRET: !Ref ZavuApiKeySecret
+        OPENAI_API_KEY_SECRET: !Ref OpenAIApiKeySecret
+        FROM_EMAIL: noreply@cdmxtraffic.com
+        ENVIRONMENT: !Ref Environment
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+Resources:
+  # DynamoDB Table for Subscribers
+  SubscribersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${Environment}-cdmx-traffic-subscribers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: subscriber_id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: frequency
+          AttributeType: S
+        - AttributeName: active
+          AttributeType: S
+      KeySchema:
+        - AttributeName: subscriber_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: frequency-active-index
+          KeySchema:
+            - AttributeName: frequency
+              KeyType: HASH
+            - AttributeName: active
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: CDMX-Traffic-Newsletter
+        - Key: Environment
+          Value: !Ref Environment
+
+  # S3 Bucket for Newsletter Archive
+  NewsletterBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Environment}-cdmx-traffic-newsletters
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldNewsletters
+            Status: Enabled
+            ExpirationInDays: 365
+      Tags:
+        - Key: Project
+          Value: CDMX-Traffic-Newsletter
+        - Key: Environment
+          Value: !Ref Environment
+
+  # S3 Bucket Policy for Public Read Access to Newsletters
+  NewsletterBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref NewsletterBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub ${NewsletterBucket.Arn}/newsletters/*
+
+  # Secrets Manager for Zavu API Key
+  ZavuApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${Environment}/cdmx-traffic/zavu-api-key
+      Description: Zavu.dev API key for email delivery
+      SecretString: '{"api_key":"PLACEHOLDER_REPLACE_ME"}'
+      Tags:
+        - Key: Project
+          Value: CDMX-Traffic-Newsletter
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Secrets Manager for OpenAI API Key
+  OpenAIApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${Environment}/cdmx-traffic/openai-api-key
+      Description: OpenAI API key for AI content generation
+      SecretString: '{"api_key":"PLACEHOLDER_REPLACE_ME"}'
+      Tags:
+        - Key: Project
+          Value: CDMX-Traffic-Newsletter
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Lambda Functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-cdmx-traffic-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt SubscribersTable.Arn
+                  - !Sub ${SubscribersTable.Arn}/index/*
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt NewsletterBucket.Arn
+                  - !Sub ${NewsletterBucket.Arn}/*
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref ZavuApiKeySecret
+                  - !Ref OpenAIApiKeySecret
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}-cdmx-traffic-*
+
+  # API Gateway
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${Environment}-cdmx-traffic-api
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      Auth:
+        ApiKeyRequired: false
+      TracingEnabled: true
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: Subscribe
+  SubscribeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-subscribe
+      CodeUri: src/subscribe/
+      Handler: handler.lambda_handler
+      Description: Handles user subscription requests
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        SubscribeApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /subscribe
+            Method: POST
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: Scraper
+  ScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-scraper
+      CodeUri: src/scraper/
+      Handler: handler.lambda_handler
+      Description: Scrapes traffic data from multiple sources
+      Timeout: 60
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: AI Generator
+  AIGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-ai-generator
+      CodeUri: src/ai_generator/
+      Handler: handler.lambda_handler
+      Description: Generates newsletter content using AI
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: Generate Newsletter
+  GenerateNewsletterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-generate-newsletter
+      CodeUri: src/generate_newsletter/
+      Handler: handler.lambda_handler
+      Description: Orchestrates newsletter generation and distribution
+      Timeout: 300
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 13 * * ? *)  # 7 AM Mexico City time (UTC-6, so 13:00 UTC)
+            Description: Daily newsletter generation at 7 AM Mexico City time
+            Enabled: true
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: Send Email
+  SendEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-send-email
+      CodeUri: src/send_email/
+      Handler: handler.lambda_handler
+      Description: Sends emails via Zavu.dev API
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: Get Sample Newsletter
+  GetSampleNewsletterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-get-sample
+      CodeUri: src/get_sample/
+      Handler: handler.lambda_handler
+      Description: Returns latest newsletter for landing page preview
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        GetSampleApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /sample-newsletter
+            Method: GET
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # Lambda Function: Unsubscribe
+  UnsubscribeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}-cdmx-traffic-unsubscribe
+      CodeUri: src/unsubscribe/
+      Handler: handler.lambda_handler
+      Description: Handles unsubscribe requests
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        UnsubscribeApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /unsubscribe
+            Method: POST
+      Tags:
+        Project: CDMX-Traffic-Newsletter
+        Environment: !Ref Environment
+
+  # S3 Bucket for Landing Page (static hosting)
+  LandingPageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Environment}-cdmx-traffic-landing
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      Tags:
+        - Key: Project
+          Value: CDMX-Traffic-Newsletter
+        - Key: Environment
+          Value: !Ref Environment
+
+  LandingPageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LandingPageBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub ${LandingPageBucket.Arn}/*
+
+  # CloudFront Distribution for Landing Page
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: LandingPageS3Origin
+            DomainName: !Select
+              - 1
+              - !Split ['://', !GetAtt LandingPageBucket.WebsiteURL]
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: LandingPageS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized managed policy
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponsePagePath: /index.html
+            ResponseCode: 200
+        PriceClass: PriceClass_100
+        Comment: !Sub ${Environment} CDMX Traffic Newsletter Landing Page
+      Tags:
+        - Key: Project
+          Value: CDMX-Traffic-Newsletter
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Groups
+  SubscribeFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${SubscribeFunction}
+      RetentionInDays: 30
+
+  ScraperFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ScraperFunction}
+      RetentionInDays: 30
+
+  AIGeneratorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AIGeneratorFunction}
+      RetentionInDays: 30
+
+  GenerateNewsletterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GenerateNewsletterFunction}
+      RetentionInDays: 30
+
+  SendEmailFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${SendEmailFunction}
+      RetentionInDays: 30
+
+  GetSampleNewsletterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetSampleNewsletterFunction}
+      RetentionInDays: 30
+
+  UnsubscribeFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${UnsubscribeFunction}
+      RetentionInDays: 30
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-api-endpoint
+
+  SubscribersTableName:
+    Description: DynamoDB table name for subscribers
+    Value: !Ref SubscribersTable
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-subscribers-table
+
+  NewsletterBucketName:
+    Description: S3 bucket name for newsletter archive
+    Value: !Ref NewsletterBucket
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-newsletter-bucket
+
+  NewsletterBucketUrl:
+    Description: S3 bucket URL for newsletter archive
+    Value: !GetAtt NewsletterBucket.WebsiteURL
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-newsletter-bucket-url
+
+  ZavuApiKeySecretArn:
+    Description: ARN of Zavu API Key secret
+    Value: !Ref ZavuApiKeySecret
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-zavu-secret-arn
+
+  OpenAIApiKeySecretArn:
+    Description: ARN of OpenAI API Key secret
+    Value: !Ref OpenAIApiKeySecret
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-openai-secret-arn
+
+  LambdaExecutionRoleArn:
+    Description: ARN of Lambda execution role
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-lambda-role-arn
+
+  LandingPageBucketName:
+    Description: S3 bucket name for landing page
+    Value: !Ref LandingPageBucket
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-landing-bucket
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-cf-distribution-id
+
+  LandingPageUrl:
+    Description: CloudFront URL for the landing page
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+    Export:
+      Name: !Sub ${Environment}-cdmx-traffic-landing-url

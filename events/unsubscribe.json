@@ -1,0 +1,27 @@
+{
+  "body": "{\"token\":\"example-unsubscribe-token-12345\"}",
+  "resource": "/unsubscribe",
+  "path": "/unsubscribe",
+  "httpMethod": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "1234567890",
+    "protocol": "HTTP/1.1",
+    "httpMethod": "POST",
+    "path": "/unsubscribe",
+    "stage": "dev",
+    "requestId": "test-request-id",
+    "requestTime": "09/Apr/2015:12:34:56 +0000",
+    "requestTimeEpoch": 1428582896000,
+    "identity": {
+      "sourceIp": "127.0.0.1"
+    }
+  },
+  "isBase64Encoded": false
+}

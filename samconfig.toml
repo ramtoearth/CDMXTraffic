@@ -1,0 +1,45 @@
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "cdmx-traffic-newsletter"
+s3_prefix = "cdmx-traffic-newsletter"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "Environment=dev"
+image_repositories = []
+
+[default.build]
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate]
+[default.validate.parameters]
+lint = true
+
+[default.sync]
+[default.sync.parameters]
+watch = true
+
+[staging]
+[staging.deploy]
+[staging.deploy.parameters]
+stack_name = "cdmx-traffic-newsletter-staging"
+s3_prefix = "cdmx-traffic-newsletter-staging"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "Environment=staging"
+
+[prod]
+[prod.deploy]
+[prod.deploy.parameters]
+stack_name = "cdmx-traffic-newsletter-prod"
+s3_prefix = "cdmx-traffic-newsletter-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "Environment=prod"

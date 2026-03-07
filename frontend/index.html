@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CDMX Tráfico - Newsletter Diario</title>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #c0392b;
+      --primary-dark: #96281b;
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #333;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --success: #27ae60;
+      --error: #e74c3c;
+      --radius: 10px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #1a0000 0%, #0f0f0f 50%, #001a0a 100%);
+      padding: 60px 20px 80px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+      line-height: 1.1;
+    }
+
+    .hero h1 span { color: var(--primary); }
+
+    .hero p {
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto 40px;
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+
+    .stat { text-align: center; }
+    .stat-num {
+      display: block;
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+    .stat-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Subscribe section */
+    .subscribe-section {
+      padding: 60px 20px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .section-subtitle {
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+    }
+
+    .form-group { margin-bottom: 20px; }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="email"]:focus { border-color: var(--primary); }
+    input[type="email"]::placeholder { color: var(--text-muted); }
+
+    .radio-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .radio-option {
+      flex: 1;
+      position: relative;
+    }
+
+    .radio-option input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+    }
+
+    .radio-option label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 14px 10px;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .radio-option label .freq-icon { font-size: 1.4rem; }
+
+    .radio-option input[type="radio"]:checked + label {
+      border-color: var(--primary);
+      color: var(--text);
+      background: rgba(192, 57, 43, 0.1);
+    }
+
+    .radio-option label:hover { border-color: #555; color: var(--text); }
+
+    .submit-btn {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: 0.3px;
+    }
+
+    .submit-btn:hover { background: var(--primary-dark); }
+    .submit-btn:active { transform: scale(0.98); }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .status-msg {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: none;
+      text-align: center;
+    }
+
+    .status-msg.success { background: rgba(39, 174, 96, 0.15); border: 1px solid var(--success); color: var(--success); display: block; }
+    .status-msg.error   { background: rgba(231, 76, 60, 0.15);  border: 1px solid var(--error);   color: var(--error);   display: block; }
+
+    /* Preview section */
+    .preview-section {
+      padding: 40px 20px 80px;
+      max-width: 860px;
+      margin: 0 auto;
+      border-top: 1px solid var(--border);
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .preview-header h2 { font-size: 1.4rem; font-weight: 700; }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(39, 174, 96, 0.15);
+      border: 1px solid var(--success);
+      color: var(--success);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .preview-frame-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-height: 400px;
+      position: relative;
+    }
+
+    .preview-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 20px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .preview-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 60px 20px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .preview-error .icon { font-size: 2.5rem; }
+
+    #newsletter-preview {
+      width: 100%;
+      border: none;
+      min-height: 600px;
+      background: #fff;
+      display: none;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    footer a { color: var(--text-muted); text-decoration: underline; }
+    footer a:hover { color: var(--text); }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .hero { padding: 40px 16px 60px; }
+      .form-card { padding: 24px 16px; }
+      .hero-stats { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">Nuevo servicio</div>
+    <h1>El tráfico de <span>CDMX</span>,<br>en tu correo</h1>
+    <p>Recibe cada mañana un resumen inteligente del tráfico en la Ciudad de México. Rutas clave, alertas y recomendaciones generadas con IA.</p>
+    <div class="hero-stats">
+      <div class="stat">
+        <span class="stat-num">7 AM</span>
+        <span class="stat-label">Hora de entrega</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">IA</span>
+        <span class="stat-label">Generado con IA</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">Gratis</span>
+        <span class="stat-label">Sin costo</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Subscribe Form -->
+  <section class="subscribe-section">
+    <h2 class="section-title">Suscribete ahora</h2>
+    <p class="section-subtitle">Un correo al dia, sin spam. Cancela cuando quieras.</p>
+
+    <div class="form-card">
+      <form id="subscribe-form" novalidate>
+        <div class="form-group">
+          <label for="email">Correo electronico</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="tucorreo@ejemplo.com"
+            autocomplete="email"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label>Frecuencia</label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" id="freq-daily" name="frequency" value="daily" checked>
+              <label for="freq-daily">
+                <span class="freq-icon">&#9728;</span>
+                Diario
+              </label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="freq-weekly" name="frequency" value="weekly">
+              <label for="freq-weekly">
+                <span class="freq-icon">&#128197;</span>
+                Semanal
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn" id="submit-btn">
+          Suscribirme gratis
+        </button>
+      </form>
+
+      <div id="status-msg" class="status-msg"></div>
+    </div>
+  </section>
+
+  <!-- Newsletter Preview -->
+  <section class="preview-section">
+    <div class="preview-header">
+      <h2>Vista previa del ultimo boletin</h2>
+      <span class="live-badge"><span class="live-dot"></span>En vivo</span>
+    </div>
+
+    <div class="preview-frame-wrapper" id="preview-wrapper">
+      <div class="preview-loading" id="preview-loading">
+        <div class="spinner"></div>
+        <span>Cargando boletin...</span>
+      </div>
+      <div class="preview-error" id="preview-error" style="display:none">
+        <span class="icon">&#128247;</span>
+        <strong>Boletin no disponible</strong>
+        <span>El primer boletin se genera a las 7 AM hora CDMX. Vuelve manana.</span>
+      </div>
+      <iframe
+        id="newsletter-preview"
+        title="Vista previa del boletin de trafico"
+        sandbox="allow-same-origin"
+      ></iframe>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>
+      &copy; 2026 CDMX Trafico &mdash;
+      <a href="#" id="unsubscribe-link">Cancelar suscripcion</a>
+    </p>
+  </footer>
+
+  <script>
+    (function () {
+      const API = window.API_BASE_URL || '';
+
+      /* ---- Subscribe form ---- */
+      const form      = document.getElementById('subscribe-form');
+      const emailInput = document.getElementById('email');
+      const submitBtn = document.getElementById('submit-btn');
+      const statusMsg = document.getElementById('status-msg');
+
+      function showStatus(msg, type) {
+        statusMsg.textContent = msg;
+        statusMsg.className = 'status-msg ' + type;
+      }
+
+      function clearStatus() {
+        statusMsg.className = 'status-msg';
+        statusMsg.textContent = '';
+      }
+
+      function isValidEmail(val) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        clearStatus();
+
+        const email = emailInput.value.trim();
+        const frequency = form.querySelector('input[name="frequency"]:checked').value;
+
+        if (!email) {
+          showStatus('Por favor ingresa tu correo electronico.', 'error');
+          emailInput.focus();
+          return;
+        }
+
+        if (!isValidEmail(email)) {
+          showStatus('El correo electronico no es valido.', 'error');
+          emailInput.focus();
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Suscribiendo...';
+
+        try {
+          const res = await fetch(API + '/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, frequency })
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (res.ok) {
+            showStatus('¡Listo! Revisa tu correo para confirmar la suscripcion.', 'success');
+            form.reset();
+            document.getElementById('freq-daily').checked = true;
+          } else {
+            const msg = data.message || data.error || 'Ocurrio un error. Intentalo de nuevo.';
+            showStatus(msg, 'error');
+          }
+        } catch (err) {
+          showStatus('No se pudo conectar al servidor. Intenta mas tarde.', 'error');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Suscribirme gratis';
+        }
+      });
+
+      /* ---- Newsletter preview ---- */
+      const loadingEl = document.getElementById('preview-loading');
+      const errorEl   = document.getElementById('preview-error');
+      const iframe    = document.getElementById('newsletter-preview');
+
+      async function loadPreview() {
+        try {
+          const res = await fetch(API + '/sample-newsletter');
+          if (!res.ok) throw new Error('not found');
+
+          const data = await res.json();
+          const html = data.html_content || data.content || data.body || '';
+
+          if (!html) throw new Error('empty');
+
+          loadingEl.style.display = 'none';
+          iframe.style.display = 'block';
+          iframe.srcdoc = html;
+
+          // Auto-resize iframe after content loads
+          iframe.addEventListener('load', function () {
+            try {
+              const h = iframe.contentDocument.body.scrollHeight;
+              if (h > 0) iframe.style.minHeight = h + 'px';
+            } catch (_) {}
+          }, { once: true });
+
+        } catch (err) {
+          loadingEl.style.display = 'none';
+          errorEl.style.display = 'flex';
+        }
+      }
+
+      if (API && API !== 'PLACEHOLDER_API_URL') {
+        loadPreview();
+      } else {
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'flex';
+      }
+
+      /* ---- Unsubscribe link ---- */
+      document.getElementById('unsubscribe-link').addEventListener('click', async function (e) {
+        e.preventDefault();
+        const email = prompt('Ingresa tu correo para cancelar la suscripcion:');
+        if (!email) return;
+        if (!isValidEmail(email)) { alert('Correo no valido.'); return; }
+
+        try {
+          const res = await fetch(API + '/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+          if (res.ok) {
+            alert('Tu suscripcion ha sido cancelada.');
+          } else {
+            alert('No se encontro ninguna suscripcion con ese correo.');
+          }
+        } catch (err) {
+          alert('Error al procesar la solicitud. Intenta mas tarde.');
+        }
+      });
+
+    })();
+  </script>
+</body>
+</html>
