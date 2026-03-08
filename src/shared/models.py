@@ -9,7 +9,7 @@ Requirements validated:
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional, Tuple
 from uuid import uuid4
 
 
@@ -46,7 +46,7 @@ class Subscriber:
             'frequency': self.frequency,
             'subscribed_at': self.subscribed_at.isoformat(),
             'last_sent_at': self.last_sent_at.isoformat() if self.last_sent_at else None,
-            'active': self.active,
+            'active': 'true' if self.active else 'false',
             'unsubscribe_token': self.unsubscribe_token
         }
     
@@ -60,7 +60,7 @@ class Subscriber:
             frequency=data['frequency'],
             subscribed_at=datetime.fromisoformat(data['subscribed_at']),
             last_sent_at=datetime.fromisoformat(data['last_sent_at']) if data.get('last_sent_at') else None,
-            active=data['active'],
+            active=data['active'] == 'true' if isinstance(data['active'], str) else bool(data['active']),
             unsubscribe_token=data['unsubscribe_token']
         )
 
@@ -138,3 +138,80 @@ class EmailResponse:
         if self.error:
             result['error'] = self.error
         return result
+
+
+@dataclass
+class TrafficIncident:
+    """
+    Represents a single traffic incident from any source.
+
+    Attributes:
+        incident_id: UUID v4 identifier
+        type: Incident category — "accident" | "pothole" | "protest"
+        location: Human-readable location string (non-empty)
+        description: Incident description (non-empty)
+        severity: "low" | "medium" | "high"
+        timestamp: When the incident occurred/was reported
+        source: Source system name (e.g. "ovial_cdmx", "c5_cdmx")
+        coordinates: Optional (lat, lon) tuple
+    """
+    incident_id: str
+    type: str
+    location: str
+    description: str
+    severity: str
+    timestamp: datetime
+    source: str
+    coordinates: Optional[Tuple[float, float]] = None
+
+    def to_dict(self) -> dict:
+        return {
+            'incident_id': self.incident_id,
+            'type': self.type,
+            'location': self.location,
+            'description': self.description,
+            'severity': self.severity,
+            'timestamp': self.timestamp.isoformat(),
+            'source': self.source,
+            'coordinates': list(self.coordinates) if self.coordinates else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TrafficIncident':
+        coords = data.get('coordinates')
+        return cls(
+            incident_id=data['incident_id'],
+            type=data['type'],
+            location=data['location'],
+            description=data['description'],
+            severity=data['severity'],
+            timestamp=datetime.fromisoformat(data['timestamp']),
+            source=data['source'],
+            coordinates=tuple(coords) if coords else None,
+        )
+
+
+@dataclass
+class ScraperResponse:
+    """
+    Aggregated response from the scraper Lambda.
+
+    Attributes:
+        incidents: Deduplicated list of traffic incidents
+        scraped_at: Timestamp when scraping completed
+        sources_count: Total number of sources attempted
+        sources_failed: Number of sources that raised exceptions
+    """
+    incidents: List[TrafficIncident]
+    scraped_at: datetime
+    sources_count: int
+    sources_failed: int
+
+    def to_dict(self) -> dict:
+        return {
+            'incidents': [i.to_dict() for i in self.incidents],
+            'scraped_at': self.scraped_at.isoformat(),
+            'sources_count': self.sources_count,
+            'sources_failed': self.sources_failed,
+            'incidents_count': len(self.incidents),
+        }

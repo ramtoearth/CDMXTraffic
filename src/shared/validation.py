@@ -19,6 +19,10 @@ EMAIL_PATTERN = re.compile(
 # Valid frequency options
 VALID_FREQUENCIES = {"daily", "weekly"}
 
+# Valid incident types and severities
+VALID_INCIDENT_TYPES = {"accident", "pothole", "protest"}
+VALID_SEVERITIES = {"low", "medium", "high"}
+
 
 def is_valid_email(email: str) -> bool:
     """
@@ -123,5 +127,15 @@ def validate_subscribe_request(email: str, frequency: str) -> Tuple[bool, str]:
     is_valid, error_msg = validate_frequency(frequency)
     if not is_valid:
         return False, error_msg
-    
+
     return True, ""
+
+
+def validate_incident_type(t: str) -> bool:
+    """Return True if t is a valid incident type."""
+    return isinstance(t, str) and t in VALID_INCIDENT_TYPES
+
+
+def validate_severity(s: str) -> bool:
+    """Return True if s is a valid severity level."""
+    return isinstance(s, str) and s in VALID_SEVERITIES

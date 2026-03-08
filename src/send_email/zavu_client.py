@@ -15,10 +15,7 @@ import requests
 import boto3
 from botocore.exceptions import ClientError
 
-# Import shared models
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from shared.models import EmailResponse
+from src.shared.models import EmailResponse
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -110,25 +107,26 @@ def send_email_via_zavu(
         return EmailResponse(success=False, error=error_msg)
     
     # Zavu API endpoint
-    api_url = os.environ.get('ZAVU_API_URL', 'https://api.zavu.dev/v1/email')
-    from_email = os.environ.get('FROM_EMAIL', 'newsletter@cdmx-traffic.com')
+    api_url = os.environ.get('ZAVU_API_URL', 'https://api.zavu.dev/v1/messages')
     
-    # Prepare request payload
+    # Prepare request payload per Zavu API spec
     payload = {
-        'from': from_email,
         'to': to_email,
+        'channel': 'email',
         'subject': subject,
-        'html': html_body,
-        'text': text_body
+        'text': text_body,
+        'htmlBody': html_body
     }
-    
-    if to_name:
-        payload['to_name'] = to_name
     
     headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json'
     }
+    
+    # Only add Zavu-Sender header if explicitly configured
+    sender_id = os.environ.get('ZAVU_SENDER_ID')
+    if sender_id:
+        headers['Zavu-Sender'] = sender_id
     
     # Retry logic with exponential backoff
     max_attempts = 3

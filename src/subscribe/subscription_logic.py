@@ -7,6 +7,7 @@ Requirements validated:
 - 1.4: Reactivate previously unsubscribed emails
 - 11.1: Generate unique unsubscribe_token
 """
+import json
 import os
 import logging
 from datetime import datetime
@@ -17,6 +18,11 @@ from botocore.exceptions import ClientError
 
 from src.shared.models import Subscriber, SubscribeResponse
 from src.shared.validation import validate_subscribe_request
+from src.subscribe.welcome_email import (
+    generate_welcome_html,
+    generate_welcome_text,
+    get_welcome_subject,
+)
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -106,6 +112,55 @@ def save_subscriber_to_db(subscriber: Subscriber) -> bool:
         return False
 
 
+def send_welcome_email(subscriber: Subscriber) -> None:
+    """
+    Invoke the send-email Lambda with a welcome email for the subscriber.
+    Never raises — email failure must not affect subscription outcome.
+    """
+    function_name = os.environ.get('SEND_EMAIL_FUNCTION_NAME')
+    landing_url = os.environ.get('LANDING_PAGE_URL', '')
+
+    if not function_name:
+        logger.warning("SEND_EMAIL_FUNCTION_NAME not set; skipping welcome email")
+        return
+
+    try:
+        html_body = generate_welcome_html(
+            name=subscriber.name,
+            email=subscriber.email,
+            frequency=subscriber.frequency,
+            unsubscribe_token=subscriber.unsubscribe_token,
+            landing_url=landing_url,
+        )
+        text_body = generate_welcome_text(
+            name=subscriber.name,
+            email=subscriber.email,
+            frequency=subscriber.frequency,
+            unsubscribe_token=subscriber.unsubscribe_token,
+            landing_url=landing_url,
+        )
+        payload = {
+            'to_email': subscriber.email,
+            'to_name': subscriber.name,
+            'subject': get_welcome_subject(),
+            'html_body': html_body,
+            'text_body': text_body,
+            'newsletter_type': 'welcome',
+        }
+        client = boto3.client('lambda')
+        response = client.invoke(
+            FunctionName=function_name,
+            InvocationType='Event',
+            Payload=json.dumps(payload).encode(),
+        )
+        logger.info(
+            f"Welcome email dispatched for {subscriber.email}; "
+            f"StatusCode={response.get('StatusCode')}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to send welcome email to {subscriber.email}: {e}")
+
+
 def generate_unsubscribe_token() -> str:
     """
     Generate unique unsubscribe token using UUID4
@@ -193,6 +248,7 @@ def validate_and_save_subscriber(
             
             # Save updated subscriber
             if save_subscriber_to_db(existing_subscriber):
+                send_welcome_email(existing_subscriber)
                 return SubscribeResponse(
                     success=True,
                     message="Subscription reactivated",
@@ -222,6 +278,7 @@ def validate_and_save_subscriber(
     # Step 4: Save to DynamoDB
     if save_subscriber_to_db(subscriber):
         logger.info(f"Successfully created new subscriber {subscriber_id}")
+        send_welcome_email(subscriber)
         return SubscribeResponse(
             success=True,
             message="Subscription successful",

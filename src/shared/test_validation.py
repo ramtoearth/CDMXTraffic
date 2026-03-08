@@ -8,7 +8,7 @@ Tests Requirements:
 - 9.2: Frequency validation
 """
 import pytest
-from validation import is_valid_email, validate_frequency, validate_subscribe_request
+from shared.validation import is_valid_email, validate_frequency, validate_subscribe_request
 
 
 class TestEmailValidation:

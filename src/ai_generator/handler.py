@@ -1,9 +1,21 @@
 """
 AI Generator Lambda Handler
-Generates newsletter content using AI
+Generates newsletter content using AI (OpenAI) with template-based fallback.
+
+Requirements validated:
+- 4.1: Generate HTML and text versions from traffic incidents
+- 4.2: Generate relevant subject line
+- 4.3: Create executive summary
+- 4.4: Extract 3-5 highlights from most important incidents
+- 4.5: Handle empty incidents list
+- 4.6: Sanitize HTML to prevent XSS
+- 4.7: Template-based fallback when AI fails after 3 retries
+- 10.4: Log AI generation failures
 """
 import json
 import logging
+
+from .content_generator import generate_newsletter_with_ai
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -11,33 +23,51 @@ logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     """
-    Generates newsletter content using AI
-    
+    Generates newsletter content using AI.
+
     Expected event:
     {
-        "incidents": [...]
+        "incidents": [
+            {
+                "type": "accident" | "pothole" | "protest",
+                "location": "string",
+                "description": "string",
+                "severity": "low" | "medium" | "high",
+                "timestamp": "ISO string",
+                "source": "string"
+            },
+            ...
+        ]
     }
-    
+
     Returns:
     {
         "html_body": "...",
         "text_body": "...",
         "subject": "...",
         "summary": "...",
-        "highlights": [...]
+        "highlights": ["...", ...]
     }
     """
     logger.info("Starting AI content generation")
-    
-    # Placeholder implementation
-    return {
-        'statusCode': 200,
-        'body': json.dumps({
-            'html_body': '<html><body><h1>Newsletter Placeholder</h1></body></html>',
-            'text_body': 'Newsletter Placeholder',
-            'subject': 'CDMX Traffic Newsletter',
-            'summary': 'Placeholder summary',
-            'highlights': [],
-            'message': 'AI Generator handler placeholder - to be implemented'
-        })
+
+    # Parse incidents from event
+    incidents = event.get("incidents", [])
+    logger.info(f"Received {len(incidents)} incident(s) for newsletter generation")
+
+    content = generate_newsletter_with_ai(incidents)
+
+    result = {
+        "html_body": content.html_body,
+        "text_body": content.text_body,
+        "subject": content.subject,
+        "summary": content.summary,
+        "highlights": content.highlights,
     }
+
+    logger.info(
+        f"Newsletter generated successfully. "
+        f"Subject: '{content.subject}' | Highlights: {len(content.highlights)}"
+    )
+
+    return result

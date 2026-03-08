@@ -4,14 +4,9 @@ Sends emails via Zavu.dev API
 """
 import json
 import logging
-import sys
-import os
 
-# Add parent directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-from send_email.zavu_client import send_email_via_zavu
-from shared.models import EmailResponse
+from src.send_email.zavu_client import send_email_via_zavu
+from src.shared.models import EmailResponse
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

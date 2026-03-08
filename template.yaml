@@ -15,6 +15,8 @@ Globals:
         OPENAI_API_KEY_SECRET: !Ref OpenAIApiKeySecret
         FROM_EMAIL: noreply@cdmxtraffic.com
         ENVIRONMENT: !Ref Environment
+        SEND_EMAIL_FUNCTION_NAME: !Sub ${Environment}-cdmx-traffic-send-email
+        LANDING_PAGE_URL: !Sub https://${CloudFrontDistribution.DomainName}
 
 Parameters:
   Environment:
@@ -218,6 +220,15 @@ Resources:
       Auth:
         ApiKeyRequired: false
       TracingEnabled: true
+      MethodSettings:
+        - ResourcePath: /unsubscribe
+          HttpMethod: POST
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+        - ResourcePath: /subscribe
+          HttpMethod: POST
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
       Tags:
         Project: CDMX-Traffic-Newsletter
         Environment: !Ref Environment
@@ -227,8 +238,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-subscribe
-      CodeUri: src/subscribe/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.subscribe.handler.lambda_handler
       Description: Handles user subscription requests
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -247,8 +258,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-scraper
-      CodeUri: src/scraper/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.scraper.handler.lambda_handler
       Description: Scrapes traffic data from multiple sources
       Timeout: 60
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -261,8 +272,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-ai-generator
-      CodeUri: src/ai_generator/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.ai_generator.handler.lambda_handler
       Description: Generates newsletter content using AI
       Timeout: 30
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -275,18 +286,26 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-generate-newsletter
-      CodeUri: src/generate_newsletter/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.generate_newsletter.handler.lambda_handler
       Description: Orchestrates newsletter generation and distribution
       Timeout: 300
       Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          SCRAPER_FUNCTION_NAME: !Ref ScraperFunction
+          AI_GENERATOR_FUNCTION_NAME: !Ref AIGeneratorFunction
+          SEND_EMAIL_FUNCTION_NAME: !Ref SendEmailFunction
+          SUBSCRIBERS_TABLE: !Ref SubscribersTable
+          NEWSLETTER_BUCKET: !Ref NewsletterBucket
       Events:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: cron(0 13 * * ? *)  # 7 AM Mexico City time (UTC-6, so 13:00 UTC)
-            Description: Daily newsletter generation at 7 AM Mexico City time
+            Schedule: cron(0 13 * * ? *)
+            Description: Daily newsletter generation at 7:00 AM Mexico City time (CST/UTC-6). Note - During DST (April-October) this triggers at 8:00 AM local time.
             Enabled: true
+            Name: !Sub ${Environment}-cdmx-traffic-daily-newsletter
       Tags:
         Project: CDMX-Traffic-Newsletter
         Environment: !Ref Environment
@@ -296,8 +315,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-send-email
-      CodeUri: src/send_email/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.send_email.handler.lambda_handler
       Description: Sends emails via Zavu.dev API
       Role: !GetAtt LambdaExecutionRole.Arn
       Tags:
@@ -309,8 +328,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-get-sample
-      CodeUri: src/get_sample/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.get_sample.handler.lambda_handler
       Description: Returns latest newsletter for landing page preview
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
@@ -329,9 +348,9 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${Environment}-cdmx-traffic-unsubscribe
-      CodeUri: src/unsubscribe/
-      Handler: handler.lambda_handler
-      Description: Handles unsubscribe requests
+      CodeUri: ./
+      Handler: src.unsubscribe.handler.lambda_handler
+      Description: Handles unsubscribe requests with rate limiting
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         UnsubscribeApi:

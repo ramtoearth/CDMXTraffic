@@ -63,9 +63,18 @@ Todas las funciones tienen:
 | Unsubscribe | 30s | API Gateway | Procesa cancelaciones |
 
 ### 5. EventBridge Rule
-- **Schedule**: `cron(0 13 * * ? *)` (7 AM CDMX = 13:00 UTC)
+- **Schedule**: `cron(0 13 * * ? *)` (7:00 AM Mexico City time)
 - **Target**: GenerateNewsletterFunction
 - **Estado**: Habilitado
+- **Nombre**: `{Environment}-cdmx-traffic-daily-newsletter`
+
+**Nota sobre Timezone**: 
+- EventBridge usa UTC para cron expressions
+- Ciudad de México está en CST (UTC-6) durante horario estándar
+- Durante horario de verano (DST, abril-octubre), CDMX está en UTC-5
+- La regla está configurada para 13:00 UTC = 7:00 AM CST
+- Durante DST, el newsletter se enviará a las 8:00 AM hora local
+- Esto es una limitación de EventBridge que no soporta timezones directamente
 
 ### 6. Secrets Manager
 - **Zavu API Key**: `{Environment}/cdmx-traffic/zavu-api-key`

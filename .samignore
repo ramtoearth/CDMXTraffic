@@ -1,0 +1,29 @@
+# Exclude test files
+**/test_*.py
+**/*_test.py
+tests/
+
+# Exclude development files
+frontend/
+.kiro/
+.git/
+.aws-sam/
+*.md
+*.jsonl
+.env*
+env.json*
+samconfig.toml
+
+# Exclude Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.hypothesis/
+**/*.egg-info/
+
+# Exclude editor/tool files
+.vscode/
+.idea/
+*.swp

@@ -10,6 +10,7 @@ confirm_changeset = true
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 parameter_overrides = "Environment=dev"
 image_repositories = []
+resolve_s3 = true
 
 [default.build]
 [default.build.parameters]
@@ -23,6 +24,14 @@ lint = true
 [default.sync]
 [default.sync.parameters]
 watch = true
+
+[default.local_invoke]
+[default.local_invoke.parameters]
+env_vars = "env.json"
+
+[default.local_start_api]
+[default.local_start_api.parameters]
+env_vars = "env.json"
 
 [staging]
 [staging.deploy]
