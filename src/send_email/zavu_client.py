@@ -110,6 +110,11 @@ def send_email_via_zavu(
     api_url = os.environ.get('ZAVU_API_URL', 'https://api.zavu.dev/v1/messages')
     
     # Prepare request payload per Zavu API spec
+    # Zavu has a 1600 character limit on the text field
+    max_text_length = 1600
+    if len(text_body) > max_text_length:
+        text_body = text_body[:max_text_length - 50] + "\n\n... (contenido truncado, ver email completo)"
+    
     payload = {
         'to': to_email,
         'channel': 'email',

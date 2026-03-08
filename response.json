@@ -1,1 +1,1 @@
-{"statusCode": 200, "body": "{\"newsletter_id\": \"cf8de2bc-da4c-452e-9291-de72dce1a089\", \"sent_count\": 0, \"failed_count\": 1, \"incidents_count\": 120, \"subject\": \"CDMX Trafico 07/03/2026 - 120 incidente(s)\", \"highlights_count\": 5}"}
+{"statusCode": 200, "body": "{\"newsletter_id\": \"42a2389f-ad26-49cf-9c79-23af1f32b1b4\", \"sent_count\": 2, \"failed_count\": 0, \"incidents_count\": 128, \"subject\": \"CDMX Trafico 07/03/2026 - 128 incidente(s)\", \"highlights_count\": 5}"}
