@@ -4,65 +4,124 @@ Sistema automatizado de newsletter que recopila información sobre incidentes vi
 
 ## Arquitectura
 
-- **AWS SAM**: Infrastructure as Code
-- **Lambda**: Funciones serverless para toda la lógica
-- **DynamoDB**: Almacenamiento de suscriptores
-- **S3**: Archivo de newsletters
-- **API Gateway**: Endpoints REST
-- **EventBridge**: Triggers programados (diario a las 7 AM)
-- **Secrets Manager**: Gestión segura de API keys
+```mermaid
+graph TB
+    subgraph "User Interface"
+        LP[Landing Page<br/>CloudFront + S3]
+        USER[Usuario]
+    end
+    
+    subgraph "API Gateway"
+        API[API Gateway REST]
+    end
+    
+    subgraph "Lambda Functions"
+        SUB[Subscribe Lambda]
+        UNSUB[Unsubscribe Lambda]
+        SAMPLE[Get Sample Lambda]
+        GEN[Generate Newsletter Lambda<br/>Orchestrator]
+        SCRAPER[Scraper Lambda]
+        AI[AI Generator Lambda]
+        EMAIL[Send Email Lambda]
+    end
+    
+    subgraph "Data Storage"
+        DDB[(DynamoDB<br/>Subscribers)]
+        S3[(S3 Bucket<br/>Newsletter Archive)]
+    end
+    
+    subgraph "External Services"
+        SOURCES[Traffic Data Sources<br/>SSC CDMX]
+        OPENAI[OpenAI API]
+        ZAVU[Zavu.dev Email API]
+    end
+    
+    subgraph "Scheduling"
+        EB[EventBridge<br/>Daily 7 AM CDMX]
+    end
+    
+    subgraph "Secrets"
+        SM[Secrets Manager<br/>API Keys]
+    end
+    
+    USER -->|Subscribe| LP
+    USER -->|View Sample| LP
+    LP -->|POST /subscribe| API
+    LP -->|GET /sample-newsletter| API
+    LP -->|POST /unsubscribe| API
+    
+    API -->|Invoke| SUB
+    API -->|Invoke| UNSUB
+    API -->|Invoke| SAMPLE
+    
+    SUB -->|Save| DDB
+    SUB -->|Trigger| EMAIL
+    UNSUB -->|Update| DDB
+    SAMPLE -->|Read| S3
+    
+    EB -->|Daily Trigger| GEN
+    
+    GEN -->|1. Scrape| SCRAPER
+    GEN -->|2. Generate| AI
+    GEN -->|3. Archive| S3
+    GEN -->|4. Query| DDB
+    GEN -->|5. Send| EMAIL
+    
+    SCRAPER -->|Fetch| SOURCES
+    AI -->|Generate| OPENAI
+    EMAIL -->|Send| ZAVU
+    
+    SUB -.->|Get Keys| SM
+    EMAIL -.->|Get Keys| SM
+    AI -.->|Get Keys| SM
+    
+    style GEN fill:#e63946
+    style EMAIL fill:#457b9d
+    style DDB fill:#2a9d8f
+    style S3 fill:#2a9d8f
+```
+
+## Stack Tecnológico
+
+- **Infrastructure**: AWS SAM (Serverless Application Model)
+- **Compute**: AWS Lambda (Python 3.11)
+- **Storage**: DynamoDB, S3
+- **API**: API Gateway REST
+- **Scheduling**: EventBridge
+- **Email**: Zavu.dev API
+- **AI**: OpenAI API
+- **Frontend**: Static HTML/CSS/JS on CloudFront + S3
 
 ## Estructura del Proyecto
 
 ```
 .
-├── template.yaml              # SAM template principal
-├── samconfig.toml            # Configuración de despliegue
-├── requirements.txt          # Dependencias Python
+├── template.yaml              # SAM infrastructure template
+├── samconfig.toml            # SAM deployment configuration
+├── requirements.txt          # Python dependencies
+├── trigger-newsletter.sh     # Manual newsletter trigger script
 ├── src/
-│   ├── subscribe/           # Lambda: Suscripción de usuarios
-│   ├── scraper/             # Lambda: Web scraping de datos de tráfico
-│   ├── ai_generator/        # Lambda: Generación de contenido con IA
-│   ├── generate_newsletter/ # Lambda: Orquestación del newsletter
-│   ├── send_email/          # Lambda: Envío de emails vía Zavu.dev
-│   ├── get_sample/          # Lambda: Obtener newsletter de ejemplo
-│   └── unsubscribe/         # Lambda: Cancelar suscripción
-└── .kiro/specs/             # Especificaciones del proyecto
+│   ├── shared/               # Shared models and utilities
+│   ├── subscribe/            # Subscription Lambda
+│   ├── unsubscribe/          # Unsubscribe Lambda
+│   ├── send_email/           # Email sending Lambda (Zavu integration)
+│   ├── scraper/              # Traffic data scraper Lambda
+│   ├── ai_generator/         # AI content generator Lambda (OpenAI)
+│   ├── generate_newsletter/  # Newsletter orchestrator Lambda
+│   └── get_sample/           # Sample newsletter retrieval Lambda
+└── .kiro/specs/             # Project specifications
 ```
-
-## Recursos de AWS
-
-### DynamoDB Table: Subscribers
-- **Partition Key**: subscriber_id (String)
-- **GSI**: email-index (para búsqueda por email)
-- **GSI**: frequency-active-index (para consultas de suscriptores activos)
-- **Campos**: subscriber_id, email, name, frequency, subscribed_at, last_sent_at, active, unsubscribe_token
-
-### S3 Bucket: Newsletter Archive
-- **Formato de keys**: newsletters/YYYY/MM/DD/{newsletter_id}.html
-- **Acceso**: Público para lectura de newsletters
-- **Lifecycle**: Eliminación automática después de 365 días
-
-### API Gateway Endpoints
-- `POST /subscribe` - Suscribirse al newsletter
-- `GET /sample-newsletter` - Obtener newsletter de ejemplo
-- `POST /unsubscribe` - Cancelar suscripción
-
-### EventBridge Schedule
-- **Frecuencia**: Diario a las 7:00 AM (hora de Ciudad de México)
-- **Cron**: `cron(0 13 * * ? *)` (13:00 UTC = 7:00 AM CDMX)
 
 ## Requisitos Previos
 
-1. **AWS CLI** instalado y configurado
+1. **AWS CLI** configurado con credenciales
 2. **AWS SAM CLI** instalado
-3. **Python 3.11** o superior
-4. **Cuenta de AWS** con permisos apropiados
-5. **API Keys**:
-   - Zavu.dev API key (para envío de emails)
-   - OpenAI API key (para generación de contenido con IA)
+3. **Python 3.11+**
+4. **API Keys**:
+   - [Zavu.dev](https://dashboard.zavu.dev) - Para envío de emails
+   - [OpenAI](https://platform.openai.com) - Para generación de contenido con IA
 
-## Instalación
+## Instalación Rápida
 
 ### 1. Instalar AWS SAM CLI
 
@@ -70,160 +129,181 @@ Sistema automatizado de newsletter que recopila información sobre incidentes vi
 # macOS
 brew install aws-sam-cli
 
-# Linux
+# Linux/Windows
 pip install aws-sam-cli
-
-# Windows
-choco install aws-sam-cli
 ```
 
 ### 2. Configurar AWS CLI
 
 ```bash
 aws configure
-# Ingresa tu AWS Access Key ID
-# Ingresa tu AWS Secret Access Key
-# Región: us-east-1 (o tu región preferida)
+# Ingresa tu AWS Access Key ID, Secret Access Key y región (us-east-1)
 ```
 
-### 3. Clonar el repositorio
+### 3. Desplegar
 
 ```bash
-git clone <repository-url>
-cd cdmx-traffic-newsletter
-```
-
-## Despliegue
-
-### Despliegue Inicial (Dev)
-
-```bash
-# Validar el template
-sam validate
-
-# Build de las funciones Lambda
+# Build
 sam build
 
-# Desplegar (primera vez - modo guiado)
+# Deploy (primera vez)
 sam deploy --guided
 
 # Despliegues subsecuentes
 sam deploy
 ```
 
-### Despliegue a Staging/Prod
+### 4. Configurar API Keys
+
+Después del primer despliegue, actualiza los secrets con tus API keys:
 
 ```bash
-# Staging
-sam deploy --config-env staging
-
-# Producción
-sam deploy --config-env prod
-```
-
-## Configuración de Secrets
-
-Después del despliegue, debes actualizar los secrets con tus API keys reales:
-
-### Zavu.dev API Key
-
-```bash
+# Zavu.dev API Key
 aws secretsmanager update-secret \
   --secret-id dev/cdmx-traffic/zavu-api-key \
-  --secret-string '{"api_key":"TU_ZAVU_API_KEY_AQUI"}'
-```
+  --secret-string '{"api_key":"TU_ZAVU_API_KEY"}'
 
-### OpenAI API Key
-
-```bash
+# OpenAI API Key
 aws secretsmanager update-secret \
   --secret-id dev/cdmx-traffic/openai-api-key \
-  --secret-string '{"api_key":"TU_OPENAI_API_KEY_AQUI"}'
+  --secret-string '{"api_key":"TU_OPENAI_API_KEY"}'
 ```
+
+### 5. Completar KYC en Zavu
+
+Para enviar emails, debes completar la verificación KYC en [Zavu Dashboard](https://dashboard.zavu.dev/kyc) y configurar un sender profile.
+
+## Uso
+
+### Trigger Manual del Newsletter
+
+```bash
+# Generar newsletter para hoy
+./trigger-newsletter.sh
+
+# Generar newsletter para fecha específica
+./trigger-newsletter.sh 2026-03-07
+```
+
+### Endpoints de API
+
+Después del despliegue, obtendrás una URL de API Gateway:
+
+```
+POST   /subscribe           - Suscribirse al newsletter
+GET    /sample-newsletter   - Obtener newsletter de ejemplo
+POST   /unsubscribe         - Cancelar suscripción
+```
+
+### Ver Logs
+
+```bash
+# Logs de una función específica
+sam logs -n GenerateNewsletterFunction --stack-name cdmx-traffic-newsletter --tail
+
+# Logs en CloudWatch
+aws logs tail /aws/lambda/dev-cdmx-traffic-generate-newsletter --follow
+```
+
+## Recursos de AWS Creados
+
+- **Lambda Functions**: 7 funciones (Subscribe, Unsubscribe, GetSample, GenerateNewsletter, Scraper, AIGenerator, SendEmail)
+- **DynamoDB Table**: `dev-cdmx-traffic-subscribers` con GSIs para email y frequency
+- **S3 Buckets**: 
+  - `dev-cdmx-traffic-newsletters` - Archivo de newsletters
+  - `dev-cdmx-traffic-landing` - Landing page estática
+- **API Gateway**: REST API con 3 endpoints
+- **EventBridge Rule**: Trigger diario a las 7 AM (hora CDMX)
+- **CloudFront Distribution**: CDN para landing page
+- **Secrets Manager**: 2 secrets para API keys
+- **IAM Role**: Rol de ejecución para Lambdas
+
+## Flujo de Newsletter Diario
+
+1. **EventBridge** dispara `GenerateNewsletterFunction` a las 7 AM
+2. **Scraper Lambda** recopila datos de tráfico de fuentes públicas
+3. **AI Generator Lambda** crea contenido del newsletter con OpenAI
+4. **S3** archiva el newsletter generado
+5. **DynamoDB** consulta suscriptores activos con frecuencia "daily"
+6. **Send Email Lambda** envía el newsletter vía Zavu.dev
+7. **DynamoDB** actualiza `last_sent_at` para cada suscriptor
 
 ## Desarrollo Local
 
-### Invocar Lambda localmente
-
 ```bash
-# Invocar función de suscripción
+# Invocar función localmente
 sam local invoke SubscribeFunction -e events/subscribe.json
 
-# Iniciar API Gateway local
+# Iniciar API local
 sam local start-api
 
-# Probar endpoint
+# Probar endpoint local
 curl -X POST http://localhost:3000/subscribe \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","frequency":"daily"}'
 ```
 
-### Logs
-
-```bash
-# Ver logs de una función específica
-sam logs -n SubscribeFunction --stack-name cdmx-traffic-newsletter --tail
-
-# Ver logs de todas las funciones
-sam logs --stack-name cdmx-traffic-newsletter --tail
-```
-
 ## Testing
 
 ```bash
-# Instalar dependencias de testing
-pip install -r requirements-dev.txt
+# Ejecutar tests
+pytest src/
 
-# Ejecutar tests unitarios
-pytest tests/unit/
-
-# Ejecutar tests de integración
-pytest tests/integration/
-
-# Ejecutar tests con coverage
+# Con coverage
 pytest --cov=src tests/
 ```
 
-## Monitoreo
-
-### CloudWatch Dashboards
-
-Los logs de todas las funciones Lambda están disponibles en CloudWatch:
-- Retention: 30 días
-- Log Groups: `/aws/lambda/{function-name}`
-
-### Métricas Clave
-
-- Tasa de suscripciones exitosas
-- Tasa de entrega de emails
-- Tiempo de ejecución de scraping
-- Errores de generación de IA
-- Conteo de incidentes por día
-
 ## Limpieza
 
-Para eliminar todos los recursos de AWS:
+Para eliminar todos los recursos:
 
 ```bash
 sam delete --stack-name cdmx-traffic-newsletter
 ```
 
-## Próximos Pasos
+## Configuración de Entornos
 
-1. Implementar lógica de negocio en cada Lambda function
-2. Configurar fuentes de datos para web scraping
-3. Integrar con Zavu.dev API
-4. Integrar con OpenAI/Bedrock para generación de contenido
-5. Crear landing page estática
-6. Configurar CloudFront para distribución
-7. Implementar tests unitarios y de integración
-8. Configurar CI/CD pipeline
+El proyecto soporta múltiples entornos (dev, staging, prod):
+
+```bash
+# Deploy a staging
+sam deploy --config-env staging
+
+# Deploy a producción
+sam deploy --config-env prod
+```
+
+## Troubleshooting
+
+### Emails no se envían
+
+1. Verifica que completaste KYC en Zavu Dashboard
+2. Verifica que el API key de Zavu está configurado correctamente
+3. Revisa logs: `sam logs -n SendEmailFunction --tail`
+
+### Newsletter sin incidentes
+
+Las fuentes de datos pueden estar temporalmente no disponibles. El sistema genera un newsletter de "sin incidentes" como fallback.
+
+### Lambda timeout
+
+Si el scraper tarda mucho, ajusta el timeout en `template.yaml`:
+
+```yaml
+ScraperFunction:
+  Properties:
+    Timeout: 120  # Aumentar a 120 segundos
+```
 
 ## Documentación Adicional
 
 - [Especificaciones del Proyecto](.kiro/specs/cdmx-traffic-newsletter/)
 - [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/)
 - [Zavu.dev API Docs](https://docs.zavu.dev/)
+
+## Licencia
+
+MIT
 
 ## Soporte
 
