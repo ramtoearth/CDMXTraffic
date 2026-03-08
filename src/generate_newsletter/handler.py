@@ -17,6 +17,9 @@ def lambda_handler(event, context):
     
     Triggered by EventBridge daily at 7 AM Mexico City time
     
+    Event parameters:
+        date (optional): Date string in YYYY-MM-DD format for newsletter generation
+    
     Returns:
     {
         "statusCode": 200,
@@ -34,9 +37,14 @@ def lambda_handler(event, context):
     """
     logger.info("Starting daily newsletter generation")
     
+    # Extract date parameter if provided
+    target_date = event.get('date') if event else None
+    if target_date:
+        logger.info(f"Using target date from event: {target_date}")
+    
     try:
-        # Execute orchestration
-        result = generate_and_send_daily_newsletter()
+        # Execute orchestration with optional date
+        result = generate_and_send_daily_newsletter(target_date=target_date)
         
         logger.info(
             f"Newsletter generation completed successfully: "

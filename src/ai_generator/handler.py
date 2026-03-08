@@ -37,7 +37,8 @@ def lambda_handler(event, context):
                 "source": "string"
             },
             ...
-        ]
+        ],
+        "date": "YYYY-MM-DD" (optional)
     }
 
     Returns:
@@ -51,11 +52,13 @@ def lambda_handler(event, context):
     """
     logger.info("Starting AI content generation")
 
-    # Parse incidents from event
+    # Parse incidents and date from event
     incidents = event.get("incidents", [])
-    logger.info(f"Received {len(incidents)} incident(s) for newsletter generation")
+    target_date = event.get("date")
+    
+    logger.info(f"Received {len(incidents)} incident(s) for newsletter generation (date={target_date})")
 
-    content = generate_newsletter_with_ai(incidents)
+    content = generate_newsletter_with_ai(incidents, target_date=target_date)
 
     result = {
         "html_body": content.html_body,

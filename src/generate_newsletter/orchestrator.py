@@ -135,12 +135,13 @@ def invoke_scraper_lambda() -> Dict[str, Any]:
         raise
 
 
-def invoke_ai_generator_lambda(incidents: List[Dict[str, Any]]) -> Dict[str, Any]:
+def invoke_ai_generator_lambda(incidents: List[Dict[str, Any]], target_date: Optional[str] = None) -> Dict[str, Any]:
     """
     Invokes the AI Generator Lambda to create newsletter content
     
     Args:
         incidents: List of traffic incident dictionaries
+        target_date: Optional date string in YYYY-MM-DD format
         
     Returns:
         Dictionary containing:
@@ -169,10 +170,12 @@ def invoke_ai_generator_lambda(incidents: List[Dict[str, Any]]) -> Dict[str, Any
     try:
         lambda_client = get_lambda_client()
         
-        # Prepare payload with incidents
+        # Prepare payload with incidents and optional date
         payload = {
             'incidents': incidents
         }
+        if target_date:
+            payload['date'] = target_date
         
         # Invoke AI Generator Lambda synchronously
         response = lambda_client.invoke(
@@ -542,7 +545,7 @@ def log_newsletter_metrics(
 
 
 
-def generate_and_send_daily_newsletter() -> Dict[str, Any]:
+def generate_and_send_daily_newsletter(target_date: Optional[str] = None) -> Dict[str, Any]:
     """
     Main orchestration function for daily newsletter generation and distribution
     
@@ -553,6 +556,9 @@ def generate_and_send_daily_newsletter() -> Dict[str, Any]:
     4. Query active daily subscribers
     5. Send emails to all subscribers
     6. Log execution metrics
+    
+    Args:
+        target_date: Optional date string in YYYY-MM-DD format for newsletter generation
     
     Returns:
         Dictionary containing:
@@ -584,7 +590,7 @@ def generate_and_send_daily_newsletter() -> Dict[str, Any]:
         - Execution metrics are logged
         - Subscriber last_sent_at timestamps are updated
     """
-    logger.info("Starting daily newsletter generation orchestration")
+    logger.info(f"Starting daily newsletter generation orchestration (target_date={target_date})")
     
     try:
         # Step 1: Scrape traffic data
@@ -601,7 +607,7 @@ def generate_and_send_daily_newsletter() -> Dict[str, Any]:
         
         # Step 2: Generate newsletter content with AI
         logger.info("Step 2: Invoking AI Generator Lambda")
-        content = invoke_ai_generator_lambda(incidents)
+        content = invoke_ai_generator_lambda(incidents, target_date=target_date)
         
         logger.info(
             f"Newsletter content generated: Subject='{content['subject']}'"

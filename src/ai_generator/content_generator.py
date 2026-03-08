@@ -198,7 +198,7 @@ def _build_incident_html(incident: Dict[str, Any]) -> str:
     )
 
 
-def generate_fallback_content(incidents: List[Dict[str, Any]]) -> NewsletterContent:
+def generate_fallback_content(incidents: List[Dict[str, Any]], target_date: Optional[str] = None) -> NewsletterContent:
     """
     Generate newsletter content using a static template (no AI).
 
@@ -207,11 +207,21 @@ def generate_fallback_content(incidents: List[Dict[str, Any]]) -> NewsletterCont
 
     Args:
         incidents: List of traffic incident dicts
+        target_date: Optional date string in YYYY-MM-DD format
 
     Returns:
         NewsletterContent with template-rendered HTML and text
     """
-    date_str = datetime.now().strftime("%d de %B de %Y")
+    # Use target_date if provided, otherwise use current date
+    if target_date:
+        from datetime import datetime as dt
+        date_obj = dt.strptime(target_date, "%Y-%m-%d")
+        date_str = date_obj.strftime("%d de %B de %Y")
+        date_short = date_obj.strftime('%d/%m/%Y')
+    else:
+        date_str = datetime.now().strftime("%d de %B de %Y")
+        date_short = datetime.now().strftime('%d/%m/%Y')
+    
     highlights = extract_highlights(incidents, max_count=5)
 
     if incidents:
@@ -219,13 +229,13 @@ def generate_fallback_content(incidents: List[Dict[str, Any]]) -> NewsletterCont
             f"Hoy se registraron {len(incidents)} incidente(s) vial(es) en Ciudad de México. "
             "Tome precauciones en las zonas afectadas."
         )
-        subject = f"CDMX Trafico {datetime.now().strftime('%d/%m/%Y')} - {len(incidents)} incidente(s)"
+        subject = f"CDMX Trafico {date_short} - {len(incidents)} incidente(s)"
     else:
         summary = (
             "No se registraron incidentes viales significativos en Ciudad de México hoy. "
             "El tráfico fluye con normalidad."
         )
-        subject = f"CDMX Trafico {datetime.now().strftime('%d/%m/%Y')} - Sin incidentes"
+        subject = f"CDMX Trafico {date_short} - Sin incidentes"
 
     highlights_html = "\n      ".join(
         f'<li style="margin-bottom:6px;font-size:13px;">{h}</li>' for h in highlights
@@ -336,6 +346,7 @@ def generate_newsletter_with_ai(
     incidents: List[Dict[str, Any]],
     max_retries: int = 3,
     retry_delay: float = 2.0,
+    target_date: Optional[str] = None,
 ) -> NewsletterContent:
     """
     Generate newsletter content using OpenAI, with retry and fallback.
@@ -347,6 +358,7 @@ def generate_newsletter_with_ai(
         incidents: List of TrafficIncident dicts from the Scraper Lambda
         max_retries: Maximum number of AI call attempts (default 3)
         retry_delay: Base delay in seconds between retries (doubles each attempt)
+        target_date: Optional date string in YYYY-MM-DD format
 
     Returns:
         NewsletterContent with html_body, text_body, subject, summary, highlights
@@ -398,4 +410,4 @@ def generate_newsletter_with_ai(
         f"AI generation failed after {max_retries} attempts. "
         f"Last error: {last_error}. Using template fallback."
     )
-    return generate_fallback_content(incidents)
+    return generate_fallback_content(incidents, target_date=target_date)
