@@ -197,6 +197,7 @@ Resources:
                 Resource:
                   - !Ref ZavuApiKeySecret
                   - !Ref OpenAIApiKeySecret
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/cdmx-traffic/waze-api-key-*
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -262,6 +263,9 @@ Resources:
       Handler: src.scraper.handler.lambda_handler
       Description: Scrapes traffic data from multiple sources
       Timeout: 60
+      Environment:
+        Variables:
+          WAZE_API_KEY_SECRET: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/cdmx-traffic/waze-api-key-MoQUxX
       Role: !GetAtt LambdaExecutionRole.Arn
       Tags:
         Project: CDMX-Traffic-Newsletter

@@ -11,12 +11,17 @@ Requirements:
 """
 import json
 import logging
+import os
 from datetime import datetime, timezone
+
+import boto3
 
 from src.scraper.scraper import TOTAL_SOURCES, scrape_traffic_sources
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+_secrets_client = boto3.client("secretsmanager")
 
 
 def lambda_handler(event, context):
@@ -34,6 +39,17 @@ def lambda_handler(event, context):
         }
     """
     logger.info("[handler] Starting traffic data scraping")
+
+    # Load Waze API key from Secrets Manager
+    secret_arn = os.environ.get("WAZE_API_KEY_SECRET")
+    if secret_arn:
+        try:
+            response = _secrets_client.get_secret_value(SecretId=secret_arn)
+            secret_data = json.loads(response["SecretString"])
+            os.environ["WAZE_API_KEY"] = secret_data["api_key"]
+            logger.info("[handler] Waze API key loaded from Secrets Manager")
+        except Exception as e:
+            logger.error("[handler] Failed to load Waze API key: %s", str(e))
 
     incidents = scrape_traffic_sources()
     scraped_at = datetime.now(tz=timezone.utc)
